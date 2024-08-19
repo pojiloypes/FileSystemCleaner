@@ -8,6 +8,7 @@
 - логирование хода работы программы;
 - отправка файла логирования на указанную почту;
 - поддерживаетсчя работа с базами данных на Postgresql и MS SQL Server;
+
 Для возможности работы с другими СУБД необходимо создать новый класс, наследующий интерфейс IDBRequestsManager и дополнить метод getDbConnection класса FileSystemCleaner.
 
 
@@ -22,4 +23,5 @@ The following functions are performed:
 - logging of program operation;
 - sending the logging file to the specified e-mail;
 - Supports working with Postgresql and MS SQL Server databases;
+  
 To be able to work with other DBMSs, it is necessary to create a new class inheriting the IDBRequestsManager interface and supplement the getDbConnection method of the FileSystemCleaner class.
