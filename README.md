@@ -23,5 +23,3 @@ The following functions are performed:
 - sending the logging file to the specified e-mail
 - Supports working with Postgresql and MS SQL Server databases.
 To be able to work with other DBMSs, it is necessary to create a new class inheriting the IDBRequestsManager interface and supplement the getDbConnection method of the FileSystemCleaner class.
-
-Translated with DeepL.com (free version)
