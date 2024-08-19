@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net.Mail;
 using System.Net;
 using System.Text;
@@ -10,15 +10,14 @@ namespace FileSystemCleaner
         public string SenderEmail { get; set; }
         public string SenderPassword { get; set; }
         public string RecipientEmail { get; set; }
-        public string smtpServer { get; set; }
-        public int smtpPort { get; set; }
+        public string SmtpServer { get; set; }
+        public int SmtpPort { get; set; }
     }
 
     static public class Loger
     {
         static StringBuilder loggingData;
-        static string smtpServer;
-        static int smtpPort;
+
         static public void run()
         {
             loggingData = new StringBuilder();
@@ -52,22 +51,19 @@ namespace FileSystemCleaner
         {
             if (emailSettings.SenderEmail.Contains("yandex"))
             {
-                emailSettings.smtpServer = "smtp.yandex.ru";
-                emailSettings.smtpPort = 25;
+                emailSettings.SmtpServer = "smtp.yandex.ru";
+                emailSettings.SmtpPort = 25;
             }
             else
             {
-                emailSettings.smtpServer = "smtp.gmail.com";
-                emailSettings.smtpPort = 587;
+                emailSettings.SmtpServer = "smtp.gmail.com";
+                emailSettings.SmtpPort = 587;
             }
         }
 
         static public void sendLogFileByEmail()
         {
             EmailSettings emailSettings = new EmailSettings();
-
-            string smtpServer = "smtp.gmail.com"; 
-            int smtpPort = 587;
 
             string subject = "Работа приложения по очистке системы от неиспользуемых файлов"; 
             string body = "Прилагается файл с логами";
@@ -90,7 +86,7 @@ namespace FileSystemCleaner
                     Attachment attachment = new Attachment(attachmentPath);
                     mail.Attachments.Add(attachment);
 
-                    SmtpClient smtpClient = new SmtpClient(smtpServer, smtpPort)
+                    SmtpClient smtpClient = new SmtpClient(emailSettings.SmtpServer, emailSettings.SmtpPort)
                     {
                         Credentials = new NetworkCredential(emailSettings.SenderEmail, emailSettings.SenderPassword),
                         EnableSsl = true
