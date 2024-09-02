@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace FileSystemCleaner
-{
+{ 
+    // Класс реализующий интерфейс IDBRequestsManager для работы с СУБД MS SQL Server
     internal class MSSqlServerRequestsManager : IDBRequestsManager
     {
         public string getSelectTablesAndColumnsRequest()
@@ -10,7 +11,7 @@ namespace FileSystemCleaner
             return "SELECT\r\n    tc.TABLE_NAME AS referencing_table,\r\n    kcu.COLUMN_NAME AS referencing_column\r\nFROM\r\n    INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS tc\r\nJOIN\r\n    INFORMATION_SCHEMA.KEY_COLUMN_USAGE AS kcu\r\n    ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME \r\n    AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA\r\nJOIN\r\n    INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS AS rc\r\n    ON tc.CONSTRAINT_NAME = rc.CONSTRAINT_NAME\r\nJOIN\r\n    INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE AS ccu\r\n    ON rc.UNIQUE_CONSTRAINT_NAME = ccu.CONSTRAINT_NAME\r\nWHERE\r\n    tc.CONSTRAINT_TYPE = 'FOREIGN KEY'\r\n    AND ccu.TABLE_NAME = 'file'\r\n    AND ccu.COLUMN_NAME = 'file_id';";
         }
 
-        public string getSelectUnusedFilesRequest(List<Tuple<string, string>> tablesAndColumns)
+        public string getSelectUnusedFilesRequest(List<DBColumn> tablesAndColumns)
         {
             string res = "select file_id, path from[file]";
             if (tablesAndColumns.Count == 0)
@@ -19,7 +20,7 @@ namespace FileSystemCleaner
             res += " WHERE file_id NOT IN (";
             for (int i = 0; i < tablesAndColumns.Count; i++)
             {
-                res += "SELECT " + tablesAndColumns[i].Item2 + " FROM [" + tablesAndColumns[i].Item1 + "]";
+                res += "SELECT " + tablesAndColumns[i].ColumnName + " FROM [" + tablesAndColumns[i].TableName + "]";
                 if (i < tablesAndColumns.Count - 1)
                     res += " UNION ";
                 else
