@@ -1,180 +1,177 @@
-﻿using Microsoft.Data.SqlClient;
-using Npgsql;
 using System;
-using System.Collections.Generic;
-using System.Data.Common;
+using System.Net.Mail;
+using System.Net;
+using System.Text;
 
 namespace FileSystemCleaner
 {
-    class FileSystemCleaner
+    public class Loger : ILoger
     {
-        IDBRequestsManager requestsManager;
-        DbConnection connection; 
-        public bool errorFlag { get; set; }
+        // Поля для хранения настроек электронной почты и данных логирования
+        EmailSettings emailSettings;
+        StringBuilder loggingData;
 
-        public FileSystemCleaner()
+        // Конструктор, принимающий настройки электронной почты и инициализирующий объект для хранения данных логов
+        public Loger(EmailSettings emailSettings)
         {
-            Loger.run();
-            setConnectionString(); 
+            this.emailSettings = emailSettings;
+            loggingData = new StringBuilder();
         }
 
-        DbConnection getDbConnection(string connectionString)
+        // Метод для добавления данных в лог
+        public void logData(string data)
         {
-            if (connectionString.Contains("Host=") && connectionString.Contains("Username="))
-            {
-                //PostgreSQL
-                requestsManager = new PostgreSqlRequestsManager();
-                return new NpgsqlConnection(connectionString);
-            }
-            else if (connectionString.Contains("Server=") && connectionString.Contains("Database="))
-            {
-                // MS SQL Server
-                requestsManager = new MSSqlServerRequestsManager();
-                return new SqlConnection(connectionString);
-            }
-
-            //Не удалось определить тип базы данных
-            return null;
+            loggingData.Append(data);
         }
 
-        public void setConnectionString()
+        // Метод для создания файла лога, сохранения данных и возврата пути к созданному файлу
+        public string createLogFile()
         {
-            Console.Write("Введите строку подключения: ");
-            string connectionString = Console.ReadLine();
+            // Генерация имени файла на основе текущей даты и времени
+            string logFileName = DateTime.Now.ToString().Replace(":", "-") + " ProgramWorkLog.txt";
 
-            try
+            // Запись данных в файл и очистка буфера логов
+            System.IO.File.AppendAllText(logFileName, loggingData.ToString());
+            loggingData.Clear();
+
+            // Возврат имени созданного файла
+            return logFileName;
+        }
+
+        // Метод для установки адреса электронной почты отправителя
+        public void setSenderEmail()
+        {
+            string ans = "";
+
+            // Запрос подтверждения у пользователя на использование системного адреса электронной почты
+            while (ans != "Y" && ans != "N")
             {
-                Loger.logData($"[{DateTime.Now.ToString()}] Попытка подключения к базе данных с параметрами:\n\t{connectionString.Replace(";","\n\t")}");
-                connection = getDbConnection(connectionString);
-                if (connection == null)
+                Console.Write($"Хотите использовать системный адрес электронной почты ({emailSettings.SenderEmail}) для отправки файла логирования? (Y/N): ");
+                ans = Console.ReadLine();
+            }
+
+            // Если пользователь соглашается, дальнейший ввод не требуется
+            if (ans == "Y")
+                return;
+
+            // Иначе, запрос на ввод нового адреса электронной почты и пароля
+            Console.Write("Введите почту, с которой будет отправлено письмо: ");
+            emailSettings.SenderEmail = Console.ReadLine();
+
+            Console.Write("Введите пароль: ");
+            emailSettings.SenderPassword = Console.ReadLine();
+        }
+
+        // Метод для установки адреса электронной почты получателя
+        public void setRecipientEmail()
+        {
+            string ans = "";
+
+            // Запрос подтверждения у пользователя на использование системного адреса электронной почты получателя
+            while (ans != "Y" && ans != "N")
+            {
+                Console.Write($"Хотите использовать системный адрес электронной почты ({emailSettings.RecipientEmail}) для получения файла логирования? (Y/N): ");
+                ans = Console.ReadLine();
+            }
+
+            // Если пользователь соглашается, дальнейший ввод не требуется
+            if (ans == "Y")
+                return;
+
+            // Иначе, запрос на ввод нового адреса электронной почты получателя
+            Console.Write("Введите почту, на которую будет отправлен файл: ");
+            emailSettings.RecipientEmail = Console.ReadLine();
+        }
+
+        // Метод для установки SMTP-сервера и порта на основе адреса отправителя
+        public void setServerAndPort()
+        {
+            // Определение SMTP-сервера и порта в зависимости от домена электронной почты отправителя
+            if (emailSettings.SenderEmail.Contains("yandex"))
+            {
+                emailSettings.SmtpServer = "smtp.yandex.ru";
+                emailSettings.SmtpPort = 25;
+            }
+            else
+            {
+                emailSettings.SmtpServer = "smtp.gmail.com";
+                emailSettings.SmtpPort = 587;
+            }
+        }
+
+        // Метод для изменения информации о почте
+        public void changeEmailInfo()
+        {
+            string ans = "";
+
+            // Запрос у пользователя, хочет ли он изменить параметры отправки почты
+            while (ans != "Y" && ans != "N")
+            {
+                Console.Write("Хотите ли вы изменить параметры отправки файла логирования? (Y/N): ");
+                ans = Console.ReadLine();
+            }
+
+            // Если пользователь не хочет менять параметры, выход из метода
+            if (ans == "N")
+                return;
+
+            // Иначе, выполнение методов для изменения адресов и сервера
+            setSenderEmail();
+            setRecipientEmail();
+            setServerAndPort();
+        }
+
+        // Метод для отправки файла лога по электронной почте
+        public void sendLogFileByEmail()
+        {
+            // Заголовок и тело письма
+            string subject = "Работа приложения по очистке системы от неиспользуемых файлов";
+            string body = "Прилагается файл с логами";
+
+            // Создание файла лога и получение его пути
+            string attachmentPath = createLogFile();
+            bool errorFlag = true;
+
+            // Цикл для повторных попыток отправки письма в случае ошибки
+            while (errorFlag)
+            {
+                try
                 {
-                    Loger.logData($"\n[{DateTime.Now.ToString()}] Работа с данной СУБД в данный момент не поддерживается.");
-                    Console.WriteLine("Работа с данной СУБД в данный момент не поддерживается.");
-                    errorFlag = true;
-                }   
-                else
-                    connection.Open();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Возникла ошибка: " + ex.Message);
-                Loger.logData($"\n[{DateTime.Now.ToString()}] Возникла ошибка при подключении: " + ex.Message);
-                errorFlag = true;
-            }
-        }
+                    // Вызов метода для изменения параметров отправки, если необходимо
+                    changeEmailInfo();
 
-        List<Tuple<string, string>> getTablesAndColumnsReferensedOnFile()
-        {
-            List<Tuple<string, string>> tablesAndColumns = new List<Tuple<string, string>>();
+                    // Создание объекта MailMessage и настройка параметров письма
+                    MailMessage mail = new MailMessage();
+                    mail.From = new MailAddress(emailSettings.SenderEmail);
+                    mail.To.Add(emailSettings.RecipientEmail);
+                    mail.Subject = subject;
+                    mail.Body = body;
 
-            using (DbCommand command = connection.CreateCommand())
-            {
-                command.CommandText = requestsManager.getSelectTablesAndColumnsRequest();
+                    // Добавление файла лога в качестве вложения
+                    Attachment attachment = new Attachment(attachmentPath);
+                    mail.Attachments.Add(attachment);
 
-                using (DbDataReader reader = command.ExecuteReader())
-                {
-                    while (reader.Read())
+                    // Настройка клиента SMTP и отправка письма
+                    SmtpClient smtpClient = new SmtpClient(emailSettings.SmtpServer, emailSettings.SmtpPort)
                     {
-                        tablesAndColumns.Add(new Tuple<string, string>(reader.GetValue(0).ToString(), reader.GetValue(1).ToString()));
-                    }
+                        Credentials = new NetworkCredential(emailSettings.SenderEmail, emailSettings.SenderPassword),
+                        EnableSsl = true
+                    };
+
+                    smtpClient.Send(mail);
+
+                    Console.WriteLine("Письмо успешно отправлено");
+                    errorFlag = false; // Завершение цикла в случае успешной отправки
                 }
-            }
-
-            return tablesAndColumns;
-        }
-
-        List<File> getUnusedFiles()
-        {
-            List<File> unusedFiles = new List<File>();
-            try
-            {
-                List<Tuple<string, string>> tablesAndColumns = getTablesAndColumnsReferensedOnFile();
-                string getUnusedFilesRequest = requestsManager.getSelectUnusedFilesRequest(tablesAndColumns);
-
-                using (DbCommand command = connection.CreateCommand())
+                catch (Exception ex)
                 {
-                    command.CommandText = getUnusedFilesRequest;
-
-                    using (DbDataReader reader = command.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            unusedFiles.Add(new File(int.Parse(reader.GetValue(0).ToString()), reader.GetValue(1).ToString()));
-                        }
-                    }
+                    // Обработка ошибок при отправке письма
+                    Console.WriteLine("Ошибка при отправке письма: " + ex.Message);
+                    Console.Write("Чтобы ввести данные заново, введите \"Y\", чтобы не отправлять письмо, введите \"N\": ");
+                    if (Console.ReadLine() == "N")
+                        errorFlag = false; // Завершение цикла, если пользователь не хочет повторять попытку
                 }
             }
-            catch (Npgsql.PostgresException ex)
-            {
-                Console.WriteLine("Ошибка получения данных: " + ex.Message);
-                Loger.logData($"\n[{DateTime.Now.ToString()}] Ошибка получения данных: " + ex.Message);
-                errorFlag = true;
-            }
-            return unusedFiles;
-        }
-
-        void deleteFilesFromDataBase(List<File> files)
-        {
-            if (files.Count > 0)
-            {
-                string deleteFilesRequest = requestsManager.getDeleteFilesRequest(files);
-
-                using (DbCommand command = connection.CreateCommand())
-                {
-                    command.CommandText = deleteFilesRequest;
-                    using (DbDataReader reader = command.ExecuteReader()) { }     
-                }
-                Loger.logData($"\n[{DateTime.Now.ToString()}] Записи в базе данных удалены");
-            }
-        }
-
-        void deleteFilesFromSystem(List<File> filesNotInOtherTables)
-        {
-            if (filesNotInOtherTables != null)
-            {
-                foreach (File file in filesNotInOtherTables)
-                {
-                    if (System.IO.File.Exists(file.path))
-                    {
-                        System.IO.File.Delete(file.path);
-                        Loger.logData($"\n[{DateTime.Now.ToString()}] Удален файл: {file.path}");
-                    }
-                    else 
-                    {
-                        Loger.logData($"\n[{DateTime.Now.ToString()}] Не найден файл: {file.path}");
-                    }
-                }
-            }
-        }
-
-        void printFilesInfo(List<File> files)
-        {
-            Loger.logData($"\n[{DateTime.Now.ToString()}] Количество удаляемых записей = {files.Count}");
-            Console.WriteLine($"Количество удаляемых записей = {files.Count}");
-            if (files.Count > 0)
-            {
-                Console.WriteLine("Найденные неиспользуемые файлы: ");
-                foreach (File f in files)
-                {
-                    Loger.logData($"\n\tid: {f.file_id}; path:{f.path}");
-                    Console.WriteLine($"{f.path}");
-                }
-            }
-        }
-
-        public void clear()
-        {
-            if (!errorFlag)
-            {
-                List<File> filesNotInOtherTables = getUnusedFiles();
-
-                printFilesInfo(filesNotInOtherTables);
-                deleteFilesFromSystem(filesNotInOtherTables);
-                deleteFilesFromDataBase(filesNotInOtherTables);
-                connection.Close();
-            }
-            Loger.sendLogFileByEmail();
-            
         }
     }
 }
